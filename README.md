@@ -1,26 +1,44 @@
-# techx
+## TechX
 
-# Installation
+A high-performance technology detection tool built with Go, leveraging the projectdiscovery wappalyzergo library to identify web technologies and frameworks.
+
+## 🚀 Features
+
+- **Fast & Efficient**: Multi-threaded processing for high-speed detection
+- **Multiple Output Formats**: Plain text, JSON, and CSV support
+- **Flexible Input**: Process single URLs or bulk lists via stdin
+- **Discord Integration**: Send detection results directly to Discord
+- **Customizable**: Configurable timeouts, retries, and rate limiting
+
+## 📦 Installation
+
+### Using Go Install
 ```
 go install github.com/rix4uni/techx@latest
 ```
 
-##### via clone command
+### Download Prebuilt Binaries
 ```
-git clone https://github.com/rix4uni/techx.git && cd techx && go build techx.go && mv techx ~/go/bin/techx && cd .. && rm -rf techx
-```
-
-##### via binary
-```
-wget https://github.com/rix4uni/techx/releases/download/v0.0.1/techx-linux-amd64-0.0.1.tgz && tar -xvzf techx-linux-amd64-0.0.1.tgz && rm -rf techx-linux-amd64-0.0.1.tgz && mv techx ~/go/bin/techx
+wget https://github.com/rix4uni/techx/releases/download/v0.0.3/techx-linux-amd64-0.0.3.tgz
+tar -xvzf techx-linux-amd64-0.0.3.tgz
+rm -rf techx-linux-amd64-0.0.3.tgz
+mv techx ~/go/bin/techx
 ```
 
-##### Usage
-```console
-techx is a technologies detector tool using the projectdiscovery wappalyzergo library.
+Or download [binary release](https://github.com/rix4uni/techx/releases) for your platform.
+
+### Compile from Source
+```
+git clone --depth 1 https://github.com/rix4uni/techx.git
+cd techx; go install
+```
+
+## 🔧 Usage
+```yaml
+A high-performance technology detection tool built with Go, leveraging the projectdiscovery wappalyzergo library to identify web technologies and frameworks.
 
 Usage:
-  ./techx [flags]
+  techx [flags]
 
 Flags:
 OUTPUT:
@@ -32,41 +50,41 @@ RATE-LIMIT:
    -t, -threads int  Number of threads to use (default 50)
 
 CONFIGURATIONS:
-   -ua string                    Custom User-Agent header for HTTP requests (default "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36")
-   -discord                      Send Matched tech to Discord, Very useful with gungnir because gungnir is gives real-time stdout
-   -id string                    Discord id to send the notification (default "general")
+   -H, -user-agent string        Custom User-Agent header for HTTP requests (default "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36")
+   -discord                      Send Matched tech to Discord
+   -id string                    Discord id to send the notification (default "alivesubdomain")
    -pc, -provider-config string  provider config path (default "/root/.config/notify/provider-config.yaml")
 
 MATCHERS:
-   -mt, -match-tech string  File containing match values (.txt file) or comma-separated list of match values
+   -mt, -match-tech string  Send matched tech output to Discord (comma-separated, file) (default "/root/.config/techx/technologies.txt")
 
 DEBUG:
-   -v, -verbose  Enable verbose output for debugging purposes
-   -V, -version  Print the version of the tool and exit
-   -sl, -silent  silent mode
+   -verbose  Enable verbose output for debugging purposes
+   -version  Print the version of the tool and exit
+   -silent   silent mode
 
 OPTIMIZATIONS:
    -retries int            Number of retry attempts for failed HTTP requests (default 1)
-   -timeout int            Delay in seconds between retry attempts (default 10)
+   -timeout int            HTTP request timeout in seconds (default 15)
    -rd, -retriesDelay int  Delay in seconds between retry attempts
    -i, -insecure           Disable TLS verification
    -delay value            duration between each http request (eg: 200ms, 1s) (default -1ns)
 ```
 
-# Output Examples
+## 📊 Output Examples
 
 Single URL:
-```
+```yaml
 echo "https://hackerone.com" | techx
 ```
 
 Multiple URLs:
-```
+```yaml
 cat urls.txt | techx
 ```
 
-# Plain text
-```
+## Plain text
+```yaml
 cat urls.txt | techx
 URL: https://hackerone.com
 Count: 14
@@ -81,8 +99,8 @@ Count: 4
 Technologies: [CookieYes, DatoCMS, HSTS, Vercel]
 ```
 
-# JSON format
-```
+## JSON format
+```yaml
 cat urls.txt | techx -json
 {
   "host": "https://hackerone.com",
@@ -138,8 +156,8 @@ cat urls.txt | techx -json
 }
 ```
 
-# CSV format
-```
+## CSV format
+```yaml
 cat urls.txt | techx -csv
 host,count,tech
 https://bugcrowd.com,16,"Bootstrap, Fastly, HSTS, MariaDB, Marketo Forms:2, MySQL, Nginx, OneTrust, PHP, Pantheon, Slick, Varnish, WordPress, Yoast SEO:22.8, jQuery, jQuery UI"
@@ -147,6 +165,75 @@ https://www.intigriti.com,4,"CookieYes, DatoCMS, HSTS, Vercel"
 https://hackerone.com,14,"Cloudflare, Drupal:10, Fastly, Google Tag Manager, HSTS, MariaDB, Marketo Forms:2, Nginx, Optimizely, PHP, Pantheon, TrustArc, Varnish, YouTube"
 ```
 
-# TODO
-- tls improvement needed
-- without -discord flag user also can run 
+## ⚙️ Configuration Flags
+
+### Output Options
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-o, -output` | Save output to file | stdout |
+| `-json` | Output in JSON format | false |
+| `-csv` | Output in CSV format | false |
+
+### Rate Limiting
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-t, -threads` | Number of concurrent threads | 50 |
+| `-delay` | Delay between HTTP requests (e.g., 200ms, 1s) | -1ns |
+| `-retries` | Retry attempts for failed requests | 1 |
+| `-rd, -retriesDelay` | Delay between retries (seconds) | 0 |
+
+### HTTP Configuration
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-H, -user-agent` | Custom User-Agent string | Mozilla/5.0 (Windows NT 10.0...) |
+| `-timeout` | HTTP request timeout (seconds) | 15 |
+| `-i, -insecure` | Disable TLS verification | false |
+
+### Matchers & Notifications
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-mt, -match-tech` | Match specific technologies (file or comma-separated) | - |
+| `-discord` | Send results to Discord | false |
+| `-id` | Discord channel ID for notifications | general |
+| `-pc, -provider-config` | Notify provider config path | ~/.config/notify/provider-config.yaml |
+
+### Debug & Info
+| Flag | Description |
+|------|-------------|
+| `-verbose` | Enable verbose debugging output |
+| `-silent` | Enable silent mode |
+| `-version` | Show version information |
+
+## 🔍 Advanced Usage
+
+### Technology Matching
+```yaml
+# Match specific technologies
+echo "https://example.com" | techx -mt "wordpress,php,nginx,iis,jenkins,java,grafana"
+
+# Use match file
+echo "https://example.com" | techx -mt technologies.txt
+```
+
+### Discord Integration
+```yaml
+# Send results to Discord
+cat urls.txt | techx -discord -id "tech-scans"
+```
+
+### Save Results to File
+```yaml
+# JSON output to file
+cat urls.txt | techx -json -o results.json
+
+# CSV output to file  
+cat urls.txt | techx -csv -o results.csv
+```
+
+## 🛠️ Performance Tuning
+
+For large-scale scans:
+```yaml
+# Increase threads and adjust timeouts
+cat large_targets.txt | techx -t 200 -timeout 30 -retries 2 -delay 100ms
+```

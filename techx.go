@@ -15,52 +15,30 @@ import (
 	"sync"
 	"time"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
+	"net"
 	"bytes"
 	"path/filepath"
 
+	"github.com/rix4uni/techx/banner"
 	wappalyzer "github.com/projectdiscovery/wappalyzergo"
 	"github.com/projectdiscovery/goflags"
 )
 
-const version = "v0.0.2"
+// const version = "v0.0.3"
 
-func printVersion() {
-	fmt.Printf("Current techx version %s\n", version)
-}
+// func printVersion() {
+// 	fmt.Printf("Current techx version %s\n", version)
+// }
 
-func printBanner() {
-	banner := `
- ____  ____  ___  _   _  _  _ 
-(_  _)( ___)/ __)( )_( )( \/ )
-  )(   )__)( (__  ) _ (  )  ( 
- (__) (____)\___)(_) (_)(_/\_)`
-fmt.Printf("%s\n%40s\n\n", banner, "Current techx version "+version)
+// func printBanner() {
+// 	banner := `
+//  ____  ____  ___  _   _  _  _ 
+// (_  _)( ___)/ __)( )_( )( \/ )
+//   )(   )__)( (__  ) _ (  )  ( 
+//  (__) (____)\___)(_) (_)(_/\_)`
+// fmt.Printf("%s\n%40s\n\n", banner, "Current techx version "+version)
 
-}
-
-func printFlags() {
-	options := ParseOptions()
-    fmt.Println("-------------------------------------------")
-    fmt.Printf("%-18s: %v\n", ":: Output", options.Output)
-    fmt.Printf("%-18s: %v\n", ":: JSONOutput", options.JSONOutput)
-    fmt.Printf("%-18s: %v\n", ":: CSVOutput", options.CSVOutput)
-    fmt.Printf("%-18s: %v\n", ":: Threads", options.Threads)
-    fmt.Printf("%-18s: %v\n", ":: UserAgent", options.UserAgent)
-    fmt.Printf("%-18s: %v\n", ":: SendToDiscord", options.SendToDiscord)
-    fmt.Printf("%-18s: %v\n", ":: DiscordId", options.DiscordId)
-    fmt.Printf("%-18s: %v\n", ":: ProviderConfig", options.ProviderConfig)
-    fmt.Printf("%-18s: %v\n", ":: MatchTech", options.MatchTech)
-    fmt.Printf("%-18s: %v\n", ":: Verbose", options.Verbose)
-    fmt.Printf("%-18s: %v\n", ":: Version", options.Version)
-    fmt.Printf("%-18s: %v\n", ":: Silent", options.Silent)
-    fmt.Printf("%-18s: %v\n", ":: Delay", options.Delay)
-    fmt.Printf("%-18s: %v\n", ":: Retries", options.Retries)
-    fmt.Printf("%-18s: %v\n", ":: Timeout", options.Timeout)
-    fmt.Printf("%-18s: %v\n", ":: RetriesDelay", options.RetriesDelay)
-    fmt.Printf("%-18s: %v\n", ":: Insecure", options.Insecure)
-    fmt.Println("-------------------------------------------")
-}
+// }
 
 // Result structure for JSON output
 type Result struct {
@@ -137,10 +115,11 @@ func ParseOptions() *Options {
 
 	// Define the default config path using the expanded home directory
     defaultConfigPath := filepath.Join(homeDir, ".config", "notify", "provider-config.yaml")
+    defaultTechXConfigPath := filepath.Join(homeDir, ".config", "techx", "technologies.txt")
 
 	options := &Options{}
 	flagSet := goflags.NewFlagSet()
-	flagSet.SetDescription(`techx is a technologies detector tool using the projectdiscovery wappalyzergo library.`)
+	flagSet.SetDescription(`A high-performance technology detection tool built with Go, leveraging the projectdiscovery wappalyzergo library to identify web technologies and frameworks.`)
 
 	createGroup(flagSet, "output", "Output",
 		flagSet.StringVarP(&options.Output, "output", "o", "", "File to save output (default is stdout)"),
@@ -153,25 +132,25 @@ func ParseOptions() *Options {
 	)
 
 	createGroup(flagSet, "configurations", "Configurations",
-		flagSet.StringVar(&options.UserAgent, "ua", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36", "Custom User-Agent header for HTTP requests"),
-		flagSet.BoolVar(&options.SendToDiscord, "discord", false, "Send Matched tech to Discord, Very useful with gungnir because gungnir is gives real-time stdout"),
-		flagSet.StringVar(&options.DiscordId, "id", "general", "Discord id to send the notification"),
+		flagSet.StringVarP(&options.UserAgent, "user-agent", "H", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36", "Custom User-Agent header for HTTP requests"),
+		flagSet.BoolVar(&options.SendToDiscord, "discord", false, "Send Matched tech to Discord"),
+		flagSet.StringVar(&options.DiscordId, "id", "alivesubdomain", "Discord id to send the notification"),
 		flagSet.StringVarP(&options.ProviderConfig, "provider-config", "pc", defaultConfigPath, "provider config path"),
 	)
 
 	createGroup(flagSet, "matchers", "Matchers",
-		flagSet.StringVarP(&options.MatchTech, "match-tech", "mt", "", "File containing match values (.txt file) or comma-separated list of match values"),
+		flagSet.StringVarP(&options.MatchTech, "match-tech", "mt", defaultTechXConfigPath, "Send matched tech output to Discord (comma-separated, file)"),
 	)
 
 	createGroup(flagSet, "debug", "Debug",
-		flagSet.BoolVarP(&options.Verbose, "verbose", "v", false, "Enable verbose output for debugging purposes"),
-		flagSet.BoolVarP(&options.Version, "version", "V", false, "Print the version of the tool and exit"),
-		flagSet.BoolVarP(&options.Silent, "silent", "sl", false, "silent mode"),
+		flagSet.BoolVar(&options.Verbose, "verbose", false, "Enable verbose output for debugging purposes"),
+		flagSet.BoolVar(&options.Version, "version", false, "Print the version of the tool and exit"),
+		flagSet.BoolVar(&options.Silent, "silent", false, "silent mode"),
 	)
 
 	createGroup(flagSet, "optimizations", "OPTIMIZATIONS",
 		flagSet.IntVar(&options.Retries, "retries", 1, "Number of retry attempts for failed HTTP requests"),
-		flagSet.IntVar(&options.Timeout, "timeout", 10, "Delay in seconds between retry attempts"),
+		flagSet.IntVar(&options.Timeout, "timeout", 15, "HTTP request timeout in seconds"),
 		flagSet.IntVarP(&options.RetriesDelay, "retriesDelay", "rd", 0, "Delay in seconds between retry attempts"),
 		flagSet.BoolVarP(&options.Insecure, "insecure", "i", false, "Disable TLS verification"),
 		flagSet.DurationVar(&options.Delay, "delay", -1, "duration between each http request (eg: 200ms, 1s)"),
@@ -208,7 +187,7 @@ func loadConfig(configFile string) (*Config, error) {
 	config := &Config{}
 
 	// Read the YAML file
-	file, err := ioutil.ReadFile(configFile)
+	file, err := os.ReadFile(configFile)
 	if err != nil {
 		return nil, err
 	}
@@ -265,11 +244,14 @@ func discord(webhookURL, messageContent string) {
 	}
 	defer resp.Body.Close()
 
+	options := ParseOptions()
 	// Check if the request was successful
-	if resp.StatusCode == http.StatusNoContent {
-		fmt.Println("Matched tech Message sent to Discord successfully!")
-	} else {
-		fmt.Printf("Failed to send message. Status code: %d\n", resp.StatusCode)
+	if options.Verbose {
+		if resp.StatusCode == http.StatusNoContent {
+			fmt.Println("Matched tech Message sent to Discord successfully!")
+		} else {
+			fmt.Printf("Failed to send message. Status code: %d\n", resp.StatusCode)
+		}
 	}
 }
 
@@ -312,25 +294,23 @@ func main() {
 
 	// Print version and exit if -version flag is provided
 	if options.Version {
-		printVersion()
+		banner.PrintBanner()
+		banner.PrintVersion()
 		return
 	}
 
 	if !options.Silent {
-		printBanner()
-		printFlags()
+		banner.PrintBanner()
 	}
 
-	// Check if -discord flag not provided then exit the program
-	if (options.SendToDiscord && options.ProviderConfig == "") || (!options.SendToDiscord && options.ProviderConfig != "") {
-		fmt.Println("Error: -discord must be provided, it's temporary i will fix soon.")
+	// Check if -discord flag is provided without -pc
+	if options.SendToDiscord && options.ProviderConfig == "" {
+		fmt.Println("Error: -pc flag is required when using -discord.")
 		os.Exit(1)
 	}
-
 	var config *Config
 	var err error // Declare err here
-
-	// Only load the configuration if -pc is provided
+	// Only load the configuration if -discord and -pc is provided
 	if options.SendToDiscord && options.ProviderConfig != "" {
 		config, err = loadConfig(options.ProviderConfig)
 		if err != nil {
@@ -363,24 +343,35 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Use a hardcoded ID to find the corresponding webhook URL
-	hardcodedID := options.DiscordId // replace with your desired hardcoded ID
-	discordConfig := getDiscordConfigByID(config, hardcodedID)
-	if discordConfig == nil {
-		fmt.Printf("Discord config with ID '%s' not found\n", hardcodedID)
-		return
-	}
-
-	// Initialize HTTP client with optional TLS verification
-	var httpClient *http.Client
-	if options.Insecure {
-		httpClient = &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
+	// Initialize Discord config only if SendToDiscord is enabled
+	var discordConfig *DiscordConfig
+	if options.SendToDiscord {
+		// Use a hardcoded ID to find the corresponding webhook URL
+		hardcodedID := options.DiscordId // replace with your desired hardcoded ID
+		discordConfig = getDiscordConfigByID(config, hardcodedID)
+		if discordConfig == nil {
+			fmt.Printf("Discord config with ID '%s' not found in %s\n", hardcodedID, options.ProviderConfig)
+			os.Exit(1)
 		}
-	} else {
-		httpClient = &http.Client{}
+	}
+	// Initialize HTTP client with improved TLS and transport settings
+	tr := &http.Transport{
+		MaxIdleConns:        100,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		Proxy:               http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+	}
+	if options.Insecure {
+		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	httpClient := &http.Client{
+		Transport: tr,
+		Timeout:   time.Duration(options.Timeout) * time.Second,
 	}
 
 	// Initialize writers
@@ -482,8 +473,7 @@ func main() {
 			// Fingerprint the URL
 			fingerprints := wappalyzerClient.Fingerprint(resp.Header, data)
 
-			// Hardcoded matches
-			// matches := []string{"IIS", "Jenkins", "JAVA"}
+			// Matches
 			var matched []string
 
 
@@ -536,18 +526,16 @@ func main() {
 				fmt.Fprintf(writer, "URL: %s\nCount: %d\nTechnologies: [%s]\n\n", url, count, strings.Join(tech, ", "))
 				mu.Unlock()
 			}
-
 			// Consolidate matched technologies into a single message
 			if len(matched) > 0 {
-			    // Create a single message with all matched technologies
-			    matchedTechs := strings.Join(matched, ", ")
-			    messageContent := fmt.Sprintf("```URL: %s\nMatched Tech: %v```\n", url, matchedTechs)
-
-			    // Send consolidated message to Discord
-			    if options.SendToDiscord && config != nil {
-			        discord(discordConfig.DiscordWebhookURL, messageContent)
-			    }
-			}
+				// Create a single message with all matched technologies
+				matchedTechs := strings.Join(matched, ", ")
+				messageContent := fmt.Sprintf("```URL: %s\nMatched Tech: %v```\n", url, matchedTechs)
+				// Send consolidated message to Discord
+				if options.SendToDiscord && config != nil && discordConfig != nil {
+					discord(discordConfig.DiscordWebhookURL, messageContent)
+				}
+		}
 
 			// Delay between requests if delay is set
 	        if options.Delay > 0 {
