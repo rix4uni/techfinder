@@ -2,43 +2,28 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
 	"gopkg.in/yaml.v2"
-	"net"
-	"bytes"
-	"path/filepath"
 
-	"github.com/rix4uni/techx/banner"
-	wappalyzer "github.com/projectdiscovery/wappalyzergo"
 	"github.com/projectdiscovery/goflags"
+	wappalyzer "github.com/projectdiscovery/wappalyzergo"
+	"github.com/rix4uni/techx/banner"
 )
-
-// const version = "v0.0.3"
-
-// func printVersion() {
-// 	fmt.Printf("Current techx version %s\n", version)
-// }
-
-// func printBanner() {
-// 	banner := `
-//  ____  ____  ___  _   _  _  _ 
-// (_  _)( ___)/ __)( )_( )( \/ )
-//   )(   )__)( (__  ) _ (  )  ( 
-//  (__) (____)\___)(_) (_)(_/\_)`
-// fmt.Printf("%s\n%40s\n\n", banner, "Current techx version "+version)
-
-// }
 
 // Result structure for JSON output
 type Result struct {
@@ -85,37 +70,37 @@ func isReachable(url string, timeout int, userAgent string, client *http.Client)
 }
 
 type Options struct {
-	Output      	string
-	JSONOutput      bool
-	CSVOutput		bool
-	Threads         int
-	UserAgent       string
-	SendToDiscord   bool
-	DiscordId  		string
-	ProviderConfig  string
-	MatchTech		string
-	Verbose         bool
-	Version     	bool
-	Silent          bool
-	Delay           time.Duration
-	Retries         int
-	Timeout         int
-	RetriesDelay    int
-	Insecure        bool
+	Output         string
+	JSONOutput     bool
+	CSVOutput      bool
+	Threads        int
+	UserAgent      string
+	SendToDiscord  bool
+	DiscordId      string
+	ProviderConfig string
+	MatchTech      string
+	Verbose        bool
+	Version        bool
+	Silent         bool
+	Delay          time.Duration
+	Retries        int
+	Timeout        int
+	RetriesDelay   int
+	Insecure       bool
 }
 
 // Define the flags
 func ParseOptions() *Options {
 	// Get the user's home directory
-    homeDir, err := os.UserHomeDir()
-    if err != nil {
-        fmt.Printf("Error fetching home directory: %v\n", err)
-        os.Exit(1)
-    }
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Printf("Error fetching home directory: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Define the default config path using the expanded home directory
-    defaultConfigPath := filepath.Join(homeDir, ".config", "notify", "provider-config.yaml")
-    defaultTechXConfigPath := filepath.Join(homeDir, ".config", "techx", "technologies.txt")
+	defaultConfigPath := filepath.Join(homeDir, ".config", "notify", "provider-config.yaml")
+	defaultTechXConfigPath := filepath.Join(homeDir, ".config", "techx", "technologies.txt")
 
 	options := &Options{}
 	flagSet := goflags.NewFlagSet()
@@ -255,6 +240,64 @@ func discord(webhookURL, messageContent string) {
 	}
 }
 
+// ensureTechnologiesFile checks if the technologies.txt file exists in the config directory
+// If it doesn't exist, downloads it from the GitHub repository
+func ensureTechnologiesFile(techFilePath string, verbose bool) error {
+	// Check if file already exists
+	if _, err := os.Stat(techFilePath); err == nil {
+		if verbose {
+			fmt.Printf("Technologies file already exists at: %s\n", techFilePath)
+		}
+		return nil
+	}
+
+	if verbose {
+		fmt.Printf("Technologies file not found. Downloading to: %s\n", techFilePath)
+	}
+
+	// Create the directory if it doesn't exist
+	techDir := filepath.Dir(techFilePath)
+	if err := os.MkdirAll(techDir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %v", err)
+	}
+
+	// Download the file from GitHub
+	url := "https://raw.githubusercontent.com/rix4uni/techx/main/technologies.txt"
+
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	resp, err := client.Get(url)
+	if err != nil {
+		return fmt.Errorf("failed to download technologies file: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download technologies file: HTTP %d", resp.StatusCode)
+	}
+
+	// Create the file
+	file, err := os.Create(techFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to create technologies file: %v", err)
+	}
+	defer file.Close()
+
+	// Write the downloaded content to the file
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to write technologies file: %v", err)
+	}
+
+	if verbose {
+		fmt.Printf("Successfully downloaded technologies file to: %s\n", techFilePath)
+	}
+
+	return nil
+}
+
 func readMatchesFromFile(filename string) ([]string, error) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -319,6 +362,14 @@ func main() {
 		}
 	}
 
+	// Ensure technologies.txt file exists (download if needed)
+	if strings.HasSuffix(options.MatchTech, ".txt") {
+		if err := ensureTechnologiesFile(options.MatchTech, options.Verbose); err != nil {
+			fmt.Printf("Error ensuring technologies file: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	// Determine the match criteria
 	var matches []string
 	if strings.HasSuffix(options.MatchTech, ".txt") {
@@ -328,7 +379,7 @@ func main() {
 		if err != nil {
 			fmt.Printf("Error reading match file: %v\n", err)
 			return
-		} 
+		}
 	} else {
 		// Treat as a comma-separated list or single value
 		matches = parseMatches(options.MatchTech)
@@ -356,11 +407,11 @@ func main() {
 	}
 	// Initialize HTTP client with improved TLS and transport settings
 	tr := &http.Transport{
-		MaxIdleConns:        100,
-		IdleConnTimeout:     90 * time.Second,
-		TLSHandshakeTimeout: 10 * time.Second,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-		Proxy:               http.ProxyFromEnvironment,
+		Proxy:                 http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
@@ -410,7 +461,7 @@ func main() {
 	urlChan := make(chan string)
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, options.Threads) // Semaphore to limit the number of concurrent threads
-	var mu sync.Mutex // Mutex for synchronized output
+	var mu sync.Mutex                           // Mutex for synchronized output
 
 	// Worker function to process URLs
 	worker := func() {
@@ -476,7 +527,6 @@ func main() {
 			// Matches
 			var matched []string
 
-
 			// Convert fingerprints to a slice of strings and sort
 			var tech []string
 			for name := range fingerprints {
@@ -492,7 +542,7 @@ func main() {
 
 			}
 			sort.Strings(tech) // Sort the technologies alphabetically
-			count := len(tech)  // Count the number of detected technologies
+			count := len(tech) // Count the number of detected technologies
 
 			if options.Verbose {
 				mu.Lock()
@@ -535,12 +585,12 @@ func main() {
 				if options.SendToDiscord && config != nil && discordConfig != nil {
 					discord(discordConfig.DiscordWebhookURL, messageContent)
 				}
-		}
+			}
 
 			// Delay between requests if delay is set
-	        if options.Delay > 0 {
-	            time.Sleep(options.Delay)
-	        }
+			if options.Delay > 0 {
+				time.Sleep(options.Delay)
+			}
 
 			// Release the semaphore
 			<-sem
@@ -565,7 +615,7 @@ func main() {
 		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 			// Probe the domain to determine the correct scheme
 			probedURL, scheme := probeDomain(url, options.Timeout, options.UserAgent, httpClient)
-			
+
 			// If probing fails (i.e., both https:// and http:// fail), skip this URL
 			if probedURL == "" {
 				if options.Verbose {
