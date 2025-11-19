@@ -14,11 +14,11 @@ func PrintVersion() {
 // Prints the Colorful banner
 func PrintBanner() {
 	banner := `
-   __               __         
-  / /_ ___   _____ / /_   _  __
- / __// _ \ / ___// __ \ | |/_/
-/ /_ /  __// /__ / / / /_>  <  
-\__/ \___/ \___//_/ /_//_/|_|
+   __               __     ____ _             __           
+  / /_ ___   _____ / /_   / __/(_)____   ____/ /___   _____
+ / __// _ \ / ___// __ \ / /_ / // __ \ / __  // _ \ / ___/
+/ /_ /  __// /__ / / / // __// // / / // /_/ //  __// /    
+\__/ \___/ \___//_/ /_//_/  /_//_/ /_/ \__,_/ \___//_/
 `
-	fmt.Printf("%s\n%40s\n\n", banner, "Current techfinder version "+version)
+	fmt.Printf("%s\n%50s\n\n", banner, "Current techfinder version "+version)
 }
