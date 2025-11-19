@@ -1,4 +1,4 @@
-## TechX
+## techfinder
 
 A high-performance technology detection tool built with Go, leveraging the projectdiscovery wappalyzergo library to identify web technologies and frameworks.
 
@@ -14,23 +14,23 @@ A high-performance technology detection tool built with Go, leveraging the proje
 
 ### Using Go Install
 ```
-go install github.com/rix4uni/techx@latest
+go install github.com/rix4uni/techfinder@latest
 ```
 
 ### Download Prebuilt Binaries
 ```
-wget https://github.com/rix4uni/techx/releases/download/v0.0.3/techx-linux-amd64-0.0.3.tgz
-tar -xvzf techx-linux-amd64-0.0.3.tgz
-rm -rf techx-linux-amd64-0.0.3.tgz
-mv techx ~/go/bin/techx
+wget https://github.com/rix4uni/techfinder/releases/download/v0.0.3/techfinder-linux-amd64-0.0.3.tgz
+tar -xvzf techfinder-linux-amd64-0.0.3.tgz
+rm -rf techfinder-linux-amd64-0.0.3.tgz
+mv techfinder ~/go/bin/techfinder
 ```
 
-Or download [binary release](https://github.com/rix4uni/techx/releases) for your platform.
+Or download [binary release](https://github.com/rix4uni/techfinder/releases) for your platform.
 
 ### Compile from Source
 ```
-git clone --depth 1 https://github.com/rix4uni/techx.git
-cd techx; go install
+git clone --depth 1 https://github.com/rix4uni/techfinder.git
+cd techfinder; go install
 ```
 
 ## 🔧 Usage
@@ -38,7 +38,7 @@ cd techx; go install
 A high-performance technology detection tool built with Go, leveraging the projectdiscovery wappalyzergo library to identify web technologies and frameworks.
 
 Usage:
-  techx [flags]
+  techfinder [flags]
 
 Flags:
 OUTPUT:
@@ -56,7 +56,7 @@ CONFIGURATIONS:
    -pc, -provider-config string  provider config path (default "/root/.config/notify/provider-config.yaml")
 
 MATCHERS:
-   -mt, -match-tech string  Send matched tech output to Discord (comma-separated, file) (default "/root/.config/techx/technologies.txt")
+   -mt, -match-tech string  Send matched tech output to Discord (comma-separated, file) (default "/root/.config/techfinder/technologies.txt")
 
 DEBUG:
    -verbose  Enable verbose output for debugging purposes
@@ -75,17 +75,17 @@ OPTIMIZATIONS:
 
 Single URL:
 ```yaml
-echo "https://hackerone.com" | techx
+echo "https://hackerone.com" | techfinder
 ```
 
 Multiple URLs:
 ```yaml
-cat urls.txt | techx
+cat urls.txt | techfinder
 ```
 
 ## Plain text
 ```yaml
-cat urls.txt | techx
+cat urls.txt | techfinder
 URL: https://hackerone.com
 Count: 14
 Technologies: [Cloudflare, Drupal:10, Fastly, Google Tag Manager, HSTS, MariaDB, Marketo Forms:2, Nginx, Optimizely, PHP, Pantheon, TrustArc, Varnish, YouTube]
@@ -101,7 +101,7 @@ Technologies: [CookieYes, DatoCMS, HSTS, Vercel]
 
 ## JSON format
 ```yaml
-cat urls.txt | techx -json
+cat urls.txt | techfinder -json
 {
   "host": "https://hackerone.com",
   "count": 14,
@@ -158,7 +158,7 @@ cat urls.txt | techx -json
 
 ## CSV format
 ```yaml
-cat urls.txt | techx -csv
+cat urls.txt | techfinder -csv
 host,count,tech
 https://bugcrowd.com,16,"Bootstrap, Fastly, HSTS, MariaDB, Marketo Forms:2, MySQL, Nginx, OneTrust, PHP, Pantheon, Slick, Varnish, WordPress, Yoast SEO:22.8, jQuery, jQuery UI"
 https://www.intigriti.com,4,"CookieYes, DatoCMS, HSTS, Vercel"
@@ -209,25 +209,25 @@ https://hackerone.com,14,"Cloudflare, Drupal:10, Fastly, Google Tag Manager, HST
 ### Technology Matching
 ```yaml
 # Match specific technologies
-echo "https://example.com" | techx -mt "wordpress,php,nginx,iis,jenkins,java,grafana"
+echo "https://example.com" | techfinder -mt "wordpress,php,nginx,iis,jenkins,java,grafana"
 
 # Use match file
-echo "https://example.com" | techx -mt technologies.txt
+echo "https://example.com" | techfinder -mt technologies.txt
 ```
 
 ### Discord Integration
 ```yaml
 # Send results to Discord
-cat urls.txt | techx -discord -id "tech-scans"
+cat urls.txt | techfinder -discord -id "tech-scans"
 ```
 
 ### Save Results to File
 ```yaml
 # JSON output to file
-cat urls.txt | techx -json -o results.json
+cat urls.txt | techfinder -json -o results.json
 
 # CSV output to file  
-cat urls.txt | techx -csv -o results.csv
+cat urls.txt | techfinder -csv -o results.csv
 ```
 
 ## 🛠️ Performance Tuning
@@ -235,5 +235,5 @@ cat urls.txt | techx -csv -o results.csv
 For large-scale scans:
 ```yaml
 # Increase threads and adjust timeouts
-cat large_targets.txt | techx -t 200 -timeout 30 -retries 2 -delay 100ms
+cat large_targets.txt | techfinder -t 200 -timeout 30 -retries 2 -delay 100ms
 ```

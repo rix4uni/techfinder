@@ -8,7 +8,7 @@ import (
 const version = "v0.0.4"
 
 func PrintVersion() {
-	fmt.Printf("Current techx version %s\n", version)
+	fmt.Printf("Current techfinder version %s\n", version)
 }
 
 // Prints the Colorful banner
@@ -20,5 +20,5 @@ func PrintBanner() {
 / /_ /  __// /__ / / / /_>  <  
 \__/ \___/ \___//_/ /_//_/|_|
 `
-	fmt.Printf("%s\n%40s\n\n", banner, "Current techx version "+version)
+	fmt.Printf("%s\n%40s\n\n", banner, "Current techfinder version "+version)
 }

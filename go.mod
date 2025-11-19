@@ -1,4 +1,4 @@
-module github.com/rix4uni/techx
+module github.com/rix4uni/techfinder
 
 go 1.25.1
 

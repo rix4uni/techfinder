@@ -22,7 +22,7 @@ import (
 
 	"github.com/projectdiscovery/goflags"
 	wappalyzer "github.com/projectdiscovery/wappalyzergo"
-	"github.com/rix4uni/techx/banner"
+	"github.com/rix4uni/techfinder/banner"
 )
 
 // Result structure for JSON output
@@ -100,7 +100,7 @@ func ParseOptions() *Options {
 
 	// Define the default config path using the expanded home directory
 	defaultConfigPath := filepath.Join(homeDir, ".config", "notify", "provider-config.yaml")
-	defaultTechXConfigPath := filepath.Join(homeDir, ".config", "techx", "technologies.txt")
+	defaulttechfinderConfigPath := filepath.Join(homeDir, ".config", "techfinder", "technologies.txt")
 
 	options := &Options{}
 	flagSet := goflags.NewFlagSet()
@@ -124,7 +124,7 @@ func ParseOptions() *Options {
 	)
 
 	createGroup(flagSet, "matchers", "Matchers",
-		flagSet.StringVarP(&options.MatchTech, "match-tech", "mt", defaultTechXConfigPath, "Send matched tech output to Discord (comma-separated, file)"),
+		flagSet.StringVarP(&options.MatchTech, "match-tech", "mt", defaulttechfinderConfigPath, "Send matched tech output to Discord (comma-separated, file)"),
 	)
 
 	createGroup(flagSet, "debug", "Debug",
@@ -262,7 +262,7 @@ func ensureTechnologiesFile(techFilePath string, verbose bool) error {
 	}
 
 	// Download the file from GitHub
-	url := "https://raw.githubusercontent.com/rix4uni/techx/main/technologies.txt"
+	url := "https://raw.githubusercontent.com/rix4uni/techfinder/main/technologies.txt"
 
 	client := &http.Client{
 		Timeout: 30 * time.Second,
