@@ -1,10 +1,10 @@
 module github.com/rix4uni/techfinder
 
-go 1.25.1
+go 1.26.1
 
 require (
 	github.com/projectdiscovery/goflags v0.1.74
-	github.com/projectdiscovery/wappalyzergo v0.2.54
+	github.com/projectdiscovery/wappalyzergo v0.2.73
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -26,9 +26,9 @@ require (
 	github.com/tidwall/pretty v1.2.0 // indirect
 	golang.org/x/exp v0.0.0-20221205204356-47842c84f3db // indirect
 	golang.org/x/mod v0.17.0 // indirect
-	golang.org/x/net v0.46.0 // indirect
+	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -32,22 +32,42 @@ type Result struct {
 	Tech  []string `json:"tech"`
 }
 
-// Attempts to probe the domain to determine which protocol (http or https) to use
-func probeDomain(domain string, timeout int, userAgent string, client *http.Client) (string, string) {
-	// Attempt HTTPS first
-	url := "https://" + domain
-	if isReachable(url, timeout, userAgent, client) {
-		return url, "https://"
+// probeDomainConcurrent probes both HTTP and HTTPS concurrently and returns the first successful URL
+func probeDomainConcurrent(domain string, probeTimeout int, userAgent string, client *http.Client) (string, string) {
+	type result struct {
+		url    string
+		scheme string
 	}
 
-	// Fallback to HTTP
-	url = "http://" + domain
-	if isReachable(url, timeout, userAgent, client) {
-		return url, "http://"
-	}
+	resultChan := make(chan result, 1)
 
-	// Return empty values if both attempts fail
-	return "", ""
+	// Try HTTPS concurrently
+	go func() {
+		if isReachable("https://"+domain, probeTimeout, userAgent, client) {
+			select {
+			case resultChan <- result{url: "https://" + domain, scheme: "https://"}:
+			default:
+			}
+		}
+	}()
+
+	// Try HTTP concurrently
+	go func() {
+		if isReachable("http://"+domain, probeTimeout, userAgent, client) {
+			select {
+			case resultChan <- result{url: "http://" + domain, scheme: "http://"}:
+			default:
+			}
+		}
+	}()
+
+	// Wait for first success or timeout
+	select {
+	case res := <-resultChan:
+		return res.url, res.scheme
+	case <-time.After(time.Duration(probeTimeout) * time.Second):
+		return "", ""
+	}
 }
 
 // Checks if a URL is reachable
@@ -69,6 +89,7 @@ func isReachable(url string, timeout int, userAgent string, client *http.Client)
 	return resp.StatusCode >= 100 && resp.StatusCode < 599 // Consider status codes 100-599 as reachable
 }
 
+// Options holds all configuration flags
 type Options struct {
 	Output         string
 	JSONOutput     bool
@@ -87,6 +108,7 @@ type Options struct {
 	Timeout        int
 	RetriesDelay   int
 	Insecure       bool
+	RateLimit      int
 }
 
 // Define the flags
@@ -135,10 +157,11 @@ func ParseOptions() *Options {
 
 	createGroup(flagSet, "optimizations", "OPTIMIZATIONS",
 		flagSet.IntVar(&options.Retries, "retries", 1, "Number of retry attempts for failed HTTP requests"),
-		flagSet.IntVar(&options.Timeout, "timeout", 15, "HTTP request timeout in seconds"),
+		flagSet.IntVar(&options.Timeout, "timeout", 15, "HTTP request timeout in seconds for fingerprinting and initial protocol probing"),
 		flagSet.IntVarP(&options.RetriesDelay, "retriesDelay", "rd", 0, "Delay in seconds between retry attempts"),
 		flagSet.BoolVarP(&options.Insecure, "insecure", "i", false, "Disable TLS verification"),
 		flagSet.DurationVar(&options.Delay, "delay", -1, "duration between each http request (eg: 200ms, 1s)"),
+		flagSet.IntVar(&options.RateLimit, "rate", 0, "Maximum requests per second (0 = unlimited)"),
 	)
 
 	_ = flagSet.Parse()
@@ -407,13 +430,16 @@ func main() {
 	}
 	// Initialize HTTP client with improved TLS and transport settings
 	tr := &http.Transport{
-		MaxIdleConns:          100,
+		MaxIdleConns:          5000,
+		MaxIdleConnsPerHost:   100,
+		MaxConnsPerHost:       100,
 		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
+		TLSHandshakeTimeout:   5 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		Proxy:                 http.ProxyFromEnvironment,
+		ForceAttemptHTTP2:     true,
 		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
+			Timeout:   5 * time.Second,
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
 	}
@@ -463,9 +489,44 @@ func main() {
 	sem := make(chan struct{}, options.Threads) // Semaphore to limit the number of concurrent threads
 	var mu sync.Mutex                           // Mutex for synchronized output
 
+	// Rate limiter (optional)
+	var rateLimiter <-chan time.Time
+	if options.RateLimit > 0 {
+		rateLimiter = time.Tick(time.Second / time.Duration(options.RateLimit))
+	}
+
 	// Worker function to process URLs
 	worker := func() {
-		for url := range urlChan {
+		for domain := range urlChan {
+			// Acquire semaphore slot
+			sem <- struct{}{}
+
+			// Rate limiting
+			if options.RateLimit > 0 {
+				<-rateLimiter
+			}
+
+			// Probe if needed (domain without protocol)
+			url := domain
+			if !strings.HasPrefix(domain, "http://") && !strings.HasPrefix(domain, "https://") {
+				probedURL, scheme := probeDomainConcurrent(domain, options.Timeout, options.UserAgent, httpClient)
+				if probedURL == "" {
+					if options.Verbose {
+						mu.Lock()
+						fmt.Printf("Skipping %s: both http:// and https:// failed\n", domain)
+						mu.Unlock()
+					}
+					<-sem // Release semaphore before continue
+					continue
+				}
+				url = probedURL
+				if options.Verbose {
+					mu.Lock()
+					fmt.Printf("Probed Scheme: %s for %s\n", scheme, domain)
+					mu.Unlock()
+				}
+			}
+
 			if options.Verbose {
 				mu.Lock()
 				fmt.Printf("Processing URL: %s\n", url)
@@ -596,7 +657,6 @@ func main() {
 			<-sem
 		}
 	}
-
 	// Start worker goroutines
 	for i := 0; i < options.Threads; i++ {
 		wg.Add(1)
@@ -606,39 +666,10 @@ func main() {
 		}()
 	}
 
-	// Reading URLs from stdin and sending them to the channel
+	// Reading URLs from stdin and sending them to the channel (non-blocking)
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
-		url := scanner.Text()
-
-		// Probe logic: Check if the domain needs probing
-		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-			// Probe the domain to determine the correct scheme
-			probedURL, scheme := probeDomain(url, options.Timeout, options.UserAgent, httpClient)
-
-			// If probing fails (i.e., both https:// and http:// fail), skip this URL
-			if probedURL == "" {
-				if options.Verbose {
-					mu.Lock()
-					fmt.Printf("Skipping %s: both http:// and https:// failed\n", url)
-					mu.Unlock()
-				}
-				continue // Move to the next URL
-			}
-
-			// Update the URL to the probed URL
-			url = probedURL
-
-			// Print the successfully probed scheme
-			if options.Verbose {
-				mu.Lock()
-				fmt.Printf("Probed Scheme: %s\n", scheme)
-				mu.Unlock()
-			}
-		}
-
-		sem <- struct{}{} // Acquire a semaphore slot
-		urlChan <- url
+		urlChan <- scanner.Text()
 	}
 
 	// Close the URL channel and wait for all workers to finish

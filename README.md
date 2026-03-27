@@ -19,9 +19,9 @@ go install github.com/rix4uni/techfinder@latest
 
 ### Download Prebuilt Binaries
 ```
-wget https://github.com/rix4uni/techfinder/releases/download/v0.0.3/techfinder-linux-amd64-0.0.3.tgz
-tar -xvzf techfinder-linux-amd64-0.0.3.tgz
-rm -rf techfinder-linux-amd64-0.0.3.tgz
+wget https://github.com/rix4uni/techfinder/releases/download/v0.0.5/techfinder-linux-amd64-0.0.5.tgz
+tar -xvzf techfinder-linux-amd64-0.0.5.tgz
+rm -rf techfinder-linux-amd64-0.0.5.tgz
 mv techfinder ~/go/bin/techfinder
 ```
 
@@ -181,12 +181,13 @@ https://hackerone.com,14,"Cloudflare, Drupal:10, Fastly, Google Tag Manager, HST
 | `-delay` | Delay between HTTP requests (e.g., 200ms, 1s) | -1ns |
 | `-retries` | Retry attempts for failed requests | 1 |
 | `-rd, -retriesDelay` | Delay between retries (seconds) | 0 |
+| `-rate` | Maximum requests per second (0 = unlimited) | 0 |
 
 ### HTTP Configuration
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-H, -user-agent` | Custom User-Agent string | Mozilla/5.0 (Windows NT 10.0...) |
-| `-timeout` | HTTP request timeout (seconds) | 15 |
+| `-timeout` | HTTP request timeout for fingerprinting and initial protocol probing (seconds) | 15 |
 | `-i, -insecure` | Disable TLS verification | false |
 
 ### Matchers & Notifications
@@ -235,5 +236,9 @@ cat urls.txt | techfinder -csv -o results.csv
 For large-scale scans:
 ```yaml
 # Increase threads and adjust timeouts
-cat large_targets.txt | techfinder -t 200 -timeout 30 -retries 2 -delay 100ms
+# Note: Probing now happens concurrently in workers for much faster performance
+cat large_targets.txt | techfinder -t 200 -timeout 10 -retries 2 -rate 500
+
+# Rate limiting example (100 requests per second max)
+cat targets.txt | techfinder -t 100 -rate 100
 ```
