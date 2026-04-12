@@ -9,6 +9,7 @@ A high-performance technology detection tool built with Go, leveraging the proje
 - **Flexible Input**: Process single URLs or bulk lists via stdin
 - **Discord Integration**: Send detection results directly to Discord
 - **Customizable**: Configurable timeouts, retries, and rate limiting
+- ♻️ **Crash-Safe Resume**: Default-on resume with `resume.cfg`; use `--no-resume` to start fresh
 
 ## 📦 Installation
 
@@ -19,9 +20,9 @@ go install github.com/rix4uni/techfinder@latest
 
 ### Download Prebuilt Binaries
 ```
-wget https://github.com/rix4uni/techfinder/releases/download/v0.0.5/techfinder-linux-amd64-0.0.5.tgz
-tar -xvzf techfinder-linux-amd64-0.0.5.tgz
-rm -rf techfinder-linux-amd64-0.0.5.tgz
+wget https://github.com/rix4uni/techfinder/releases/download/v0.0.6/techfinder-linux-amd64-0.0.6.tgz
+tar -xvzf techfinder-linux-amd64-0.0.6.tgz
+rm -rf techfinder-linux-amd64-0.0.6.tgz
 mv techfinder ~/go/bin/techfinder
 ```
 
@@ -81,6 +82,11 @@ echo "https://hackerone.com" | techfinder
 Multiple URLs:
 ```yaml
 cat urls.txt | techfinder
+```
+
+# Start fresh without resuming
+```yaml
+cat urls.txt | techfinder --no-resume
 ```
 
 ## Plain text
@@ -189,6 +195,7 @@ https://hackerone.com,14,"Cloudflare, Drupal:10, Fastly, Google Tag Manager, HST
 | `-H, -user-agent` | Custom User-Agent string | Mozilla/5.0 (Windows NT 10.0...) |
 | `-timeout` | HTTP request timeout for fingerprinting and initial protocol probing (seconds) | 15 |
 | `-i, -insecure` | Disable TLS verification | false |
+| `--no-resume` | Disable resume; start fresh and ignore any existing `resume.cfg` | false |
 
 ### Matchers & Notifications
 | Flag | Description | Default |
@@ -241,4 +248,17 @@ cat large_targets.txt | techfinder -t 200 -timeout 10 -retries 2 -rate 500
 
 # Rate limiting example (100 requests per second max)
 cat targets.txt | techfinder -t 100 -rate 100
+
+## ♻️ Resume & Interrupt Handling
+
+- Default-on resume saves progress to a `resume.cfg` in the current directory in the form:
+
+```
+scanned=300000
+```
+
+- Re-run the same command in the same directory to resume; the scanner skips the first `scanned` items and continues.
+- Use `--no-resume` to start from scratch.
+- On successful completion, `resume.cfg` is deleted automatically.
+- On CTRL+C, pending tasks are cancelled gracefully and progress is saved before exiting with a helpful resume hint.
 ```

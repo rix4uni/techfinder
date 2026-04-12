@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	github.com/projectdiscovery/goflags v0.1.74
-	github.com/projectdiscovery/wappalyzergo v0.2.73
+	github.com/projectdiscovery/wappalyzergo v0.2.76
 	gopkg.in/yaml.v2 v2.4.0
 )
 

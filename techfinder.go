@@ -12,7 +12,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"strconv"
 	"sort"
 	"strings"
 	"sync"
@@ -109,6 +111,7 @@ type Options struct {
 	RetriesDelay   int
 	Insecure       bool
 	RateLimit      int
+	NoResume       bool
 }
 
 // Define the flags
@@ -143,6 +146,7 @@ func ParseOptions() *Options {
 		flagSet.BoolVar(&options.SendToDiscord, "discord", false, "Send Matched tech to Discord"),
 		flagSet.StringVar(&options.DiscordId, "id", "alivesubdomain", "Discord id to send the notification"),
 		flagSet.StringVarP(&options.ProviderConfig, "provider-config", "pc", defaultConfigPath, "provider config path"),
+		flagSet.BoolVar(&options.NoResume, "no-resume", false, "Disable resume functionality and start scanning fresh"),
 	)
 
 	createGroup(flagSet, "matchers", "Matchers",
@@ -483,8 +487,44 @@ func main() {
 		}
 	}
 
+	// Resume setup
+	cwd, _ := os.Getwd()
+	resumePath := filepath.Join(cwd, "resume.cfg")
+	start := 0
+	if options.NoResume {
+		_ = deleteResume(resumePath)
+		if !options.Silent {
+			fmt.Fprintln(os.Stderr, "Starting fresh; resume disabled (--no-resume)")
+		}
+	} else {
+		if s, err := loadResume(resumePath); err == nil {
+			start = s
+			if start > 0 && !options.Silent {
+				fmt.Fprintf(os.Stderr, "Resuming from scanned=%d (skipping %d items)\n", start, start)
+			}
+		}
+	}
+
+	// Global context + interrupt handling
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt)
+	interrupted := false
+	go func() {
+		<-sigCh
+		interrupted = true
+		fmt.Fprintln(os.Stderr, "\nInterrupt received. Cancelling pending tasks and saving progress...")
+		cancel()
+	}()
+
+	if !options.NoResume {
+		_ = saveResume(resumePath, start)
+	}
+
 	// Create a channel for URLs and a wait group
-	urlChan := make(chan string)
+	type workItem struct{ index int; value string }
+	workChan := make(chan workItem)
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, options.Threads) // Semaphore to limit the number of concurrent threads
 	var mu sync.Mutex                           // Mutex for synchronized output
@@ -496,8 +536,30 @@ func main() {
 	}
 
 	// Worker function to process URLs
+	doneCh := make(chan int, options.Threads*2)
+
+	// Progress collector
+	nextLocal := start
+	pending := make(map[int]struct{})
+	collectorDone := make(chan struct{})
+	go func() {
+		defer close(collectorDone)
+		for idx := range doneCh {
+			pending[idx] = struct{}{}
+			for {
+				if _, ok := pending[nextLocal]; ok {
+					delete(pending, nextLocal)
+					nextLocal++
+					_ = saveResume(resumePath, nextLocal)
+				} else {
+					break
+				}
+			}
+		}
+	}()
+
 	worker := func() {
-		for domain := range urlChan {
+		for wi := range workChan {
 			// Acquire semaphore slot
 			sem <- struct{}{}
 
@@ -507,6 +569,7 @@ func main() {
 			}
 
 			// Probe if needed (domain without protocol)
+			domain := wi.value
 			url := domain
 			if !strings.HasPrefix(domain, "http://") && !strings.HasPrefix(domain, "https://") {
 				probedURL, scheme := probeDomainConcurrent(domain, options.Timeout, options.UserAgent, httpClient)
@@ -539,10 +602,10 @@ func main() {
 			// Retry logic
 			for i := 0; i < options.Retries; i++ {
 				// Set up HTTP request with timeout
-				ctx, cancel := context.WithTimeout(context.Background(), time.Duration(options.Timeout)*time.Second)
-				defer cancel()
+				reqCtx, reqCancel := context.WithTimeout(ctx, time.Duration(options.Timeout)*time.Second)
+				defer reqCancel()
 
-				req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+				req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
 				if err != nil {
 					if options.Verbose {
 						mu.Lock()
@@ -555,7 +618,12 @@ func main() {
 				// Set the custom User-Agent header
 				req.Header.Set("User-Agent", options.UserAgent)
 
-				resp, fetchErr = httpClient.Do(req)
+				// If global ctx cancelled, abort quickly
+				if ctx.Err() != nil {
+					fetchErr = fmt.Errorf("cancelled")
+				} else {
+					resp, fetchErr = httpClient.Do(req)
+				}
 				if fetchErr == nil {
 					break // Exit retry loop if request is successful
 				}
@@ -576,6 +644,16 @@ func main() {
 					mu.Lock()
 					fmt.Printf("Failed to fetch %s after %d retries: %v\n", url, options.Retries, fetchErr)
 					mu.Unlock()
+				}
+				// Do not mark completion if cancelled
+				<-sem
+				if ctx.Err() != nil {
+					continue
+				}
+				// Mark completion for resume progress
+				select {
+				case doneCh <- wi.index:
+				case <-ctx.Done():
 				}
 				continue
 			}
@@ -655,6 +733,13 @@ func main() {
 
 			// Release the semaphore
 			<-sem
+			// Mark completion for resume progress (only if not cancelled)
+			if ctx.Err() == nil {
+				select {
+				case doneCh <- wi.index:
+				case <-ctx.Done():
+				}
+			}
 		}
 	}
 	// Start worker goroutines
@@ -666,15 +751,38 @@ func main() {
 		}()
 	}
 
-	// Reading URLs from stdin and sending them to the channel (non-blocking)
+	// Reading URLs from stdin and sending them to the channel with resume offset
 	scanner := bufio.NewScanner(os.Stdin)
+	total := 0
 	for scanner.Scan() {
-		urlChan <- scanner.Text()
+		line := scanner.Text()
+		// We count non-empty lines as items
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if total >= start {
+			workChan <- workItem{index: total, value: line}
+		}
+		total++
 	}
 
-	// Close the URL channel and wait for all workers to finish
-	close(urlChan)
+	// Early exit if everything already scanned
+	if !options.NoResume && start >= total {
+		if !options.Silent {
+			fmt.Fprintln(os.Stderr, "Nothing to do; all items already scanned. Use --no-resume to start over.")
+		}
+		close(workChan)
+		close(doneCh)
+		<-collectorDone
+		_ = deleteResume(resumePath)
+		return
+	}
+
+	// Close the work channel and wait for all workers to finish
+	close(workChan)
 	wg.Wait()
+	close(doneCh)
+	<-collectorDone
 
 	// Handle scanner errors
 	if err := scanner.Err(); err != nil {
@@ -685,4 +793,59 @@ func main() {
 		}
 		os.Exit(1)
 	}
+
+	// Cleanup resume file and print hint if interrupted
+	if nextLocal >= total && !interrupted {
+		_ = deleteResume(resumePath)
+	}
+	if interrupted {
+		fmt.Fprintln(os.Stderr, "Progress saved to resume.cfg. Re-run the same command to resume, or use --no-resume to start over.")
+	}
+}
+
+// Resume helpers
+func loadResume(path string) (int, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "scanned=") {
+			val := strings.TrimPrefix(line, "scanned=")
+			n, err := strconv.Atoi(strings.TrimSpace(val))
+			if err == nil && n >= 0 {
+				return n, nil
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return 0, err
+	}
+	return 0, nil
+}
+
+func saveResume(path string, scanned int) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	data := []byte(fmt.Sprintf("scanned=%d\n", scanned))
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		return err
+	}
+	if _, err := os.Stat(path); err == nil {
+		_ = os.Remove(path)
+	}
+	return os.Rename(tmp, path)
+}
+
+func deleteResume(path string) error {
+	if _, err := os.Stat(path); err == nil {
+		return os.Remove(path)
+	}
+	return nil
 }
