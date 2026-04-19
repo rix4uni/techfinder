@@ -1,17 +1,24 @@
 module github.com/rix4uni/techfinder
 
-go 1.26.1
+go 1.26.2
 
 require (
+	github.com/chromedp/chromedp v0.15.1
 	github.com/projectdiscovery/goflags v0.1.74
-	github.com/projectdiscovery/wappalyzergo v0.2.76
+	github.com/projectdiscovery/wappalyzergo v0.2.77
 	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
+	github.com/chromedp/cdproto v0.0.0-20260321001828-e3e3800016bc // indirect
+	github.com/chromedp/sysutil v1.1.0 // indirect
 	github.com/cnf/structhash v0.0.0-20201127153200-e1b16c1ebc08 // indirect
+	github.com/go-json-experiment/json v0.0.0-20260214004413-d219187c3433 // indirect
+	github.com/gobwas/httphead v0.1.0 // indirect
+	github.com/gobwas/pool v0.2.1 // indirect
+	github.com/gobwas/ws v1.4.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

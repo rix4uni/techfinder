@@ -1,15 +1,16 @@
 ## techfinder
 
-A high-performance technology detection tool built with Go, leveraging the projectdiscovery wappalyzergo library to identify web technologies and frameworks.
+A high-performance technology detection tool built with Go, leveraging the [rix4uni/wappalyzergo](https://github.com/rix4uni/wappalyzergo) library to identify web technologies and frameworks — including dynamically loaded JS frameworks like **React, Next.js, Vue, Svelte, Framer Motion** and more via headless browser support.
 
 ## 🚀 Features
 
-- **Fast & Efficient**: Multi-threaded processing for high-speed detection
-- **Multiple Output Formats**: Plain text, JSON, and CSV support
-- **Flexible Input**: Process single URLs or bulk lists via stdin
-- **Discord Integration**: Send detection results directly to Discord
-- **Customizable**: Configurable timeouts, retries, and rate limiting
-- ♻️ **Crash-Safe Resume**: Default-on resume with `resume.cfg`; use `--no-resume` to start fresh
+- **🧠 Headless Detection (default)**: Uses a real headless Chrome browser to detect technologies loaded dynamically via JavaScript (React, Next.js, Framer Motion, Swiper, etc.)
+- **⚡ Fast Static Mode**: High-speed HTTP-only detection for large-scale scans without browser overhead
+- **🔧 Multi-threaded**: Concurrent processing for maximum throughput
+- **📄 Multiple Output Formats**: Plain text, JSON, and CSV support
+- **🎯 Tech Matching**: Filter & alert on specific technologies
+- **💬 Discord Integration**: Send detections directly to Discord
+- **♻️ Crash-Safe Resume**: Default-on resume with `resume.cfg`; use `--no-resume` to start fresh
 
 ## 📦 Installation
 
@@ -20,9 +21,9 @@ go install github.com/rix4uni/techfinder@latest
 
 ### Download Prebuilt Binaries
 ```
-wget https://github.com/rix4uni/techfinder/releases/download/v0.0.6/techfinder-linux-amd64-0.0.6.tgz
-tar -xvzf techfinder-linux-amd64-0.0.6.tgz
-rm -rf techfinder-linux-amd64-0.0.6.tgz
+wget https://github.com/rix4uni/techfinder/releases/download/v0.0.7/techfinder-linux-amd64-0.0.7.tgz
+tar -xvzf techfinder-linux-amd64-0.0.7.tgz
+rm -rf techfinder-linux-amd64-0.0.7.tgz
 mv techfinder ~/go/bin/techfinder
 ```
 
@@ -35,8 +36,8 @@ cd techfinder; go install
 ```
 
 ## 🔧 Usage
-```yaml
-A high-performance technology detection tool built with Go, leveraging the projectdiscovery wappalyzergo library to identify web technologies and frameworks.
+```
+A high-performance technology detection tool built with Go, leveraging the rix4uni wappalyzergo library to identify web technologies and frameworks.
 
 Usage:
   techfinder [flags]
@@ -51,10 +52,11 @@ RATE-LIMIT:
    -t, -threads int  Number of threads to use (default 50)
 
 CONFIGURATIONS:
-   -H, -user-agent string        Custom User-Agent header for HTTP requests (default "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36")
+   -H, -user-agent string        Custom User-Agent header for HTTP requests (default "Mozilla/5.0 ...")
    -discord                      Send Matched tech to Discord
    -id string                    Discord id to send the notification (default "alivesubdomain")
    -pc, -provider-config string  provider config path (default "/root/.config/notify/provider-config.yaml")
+   -no-resume                    Disable resume functionality and start scanning fresh
 
 MATCHERS:
    -mt, -match-tech string  Send matched tech output to Discord (comma-separated, file) (default "/root/.config/techfinder/technologies.txt")
@@ -70,28 +72,67 @@ OPTIMIZATIONS:
    -rd, -retriesDelay int  Delay in seconds between retry attempts
    -i, -insecure           Disable TLS verification
    -delay value            duration between each http request (eg: 200ms, 1s) (default -1ns)
+   -rate int               Maximum requests per second (0 = unlimited)
+   -mode string            Detection mode: 'best' uses headless browser for JS/DOM fingerprinting (default), 'fast' uses static HTTP only (default "best")
 ```
+
+## 🧠 Detection Modes
+
+techfinder supports two detection modes controlled by the `-mode` flag:
+
+### `-mode best` (Default — Headless Browser)
+
+Launches a real headless Chrome browser for every target, executes page JavaScript, and evaluates:
+- **JS globals** (e.g. `window.React.version`, `window.__NEXT_DATA__`)
+- **DOM selectors** (e.g. `.swiper`, `[data-framer]`)
+- Fully rendered HTML after JS hydration
+
+This catches technologies invisible to static HTTP requests.
+
+```bash
+echo "https://www.cetus.zone" | techfinder -mode best -silent
+```
+```
+URL: https://www.cetus.zone
+Count: 17
+Technologies: [Amazon CloudFront, Amazon Web Services, Framer Motion, HSTS, LottieFiles, Netlify, Next.js App Router, Next.js:14.2.16, Node.js, Open Graph, Priority Hints, React, Svelte, SvelteKit, Swiper, Vite, Webpack]
+```
+
+### `-mode fast` (Static HTTP Only)
+
+Uses plain HTTP GET requests only — no browser, no JS execution. Best for large-scale scanning where speed matters more than completeness.
+
+```bash
+echo "https://www.cetus.zone" | techfinder -mode fast -silent
+```
+```
+URL: https://www.cetus.zone
+Count: 4
+Technologies: [Amazon CloudFront, Amazon Web Services, HSTS, Netlify]
+```
+
+> **Note:** In `best` mode, if headless Chrome fails for a URL (e.g. network timeout), techfinder automatically falls back to static detection for that target.
 
 ## 📊 Output Examples
 
 Single URL:
-```yaml
+```bash
 echo "https://hackerone.com" | techfinder
 ```
 
 Multiple URLs:
-```yaml
+```bash
 cat urls.txt | techfinder
 ```
 
-# Start fresh without resuming
-```yaml
+Start fresh without resuming:
+```bash
 cat urls.txt | techfinder --no-resume
 ```
 
 ## Plain text
-```yaml
-cat urls.txt | techfinder
+```bash
+cat urls.txt | techfinder -mode fast
 URL: https://hackerone.com
 Count: 14
 Technologies: [Cloudflare, Drupal:10, Fastly, Google Tag Manager, HSTS, MariaDB, Marketo Forms:2, Nginx, Optimizely, PHP, Pantheon, TrustArc, Varnish, YouTube]
@@ -106,7 +147,7 @@ Technologies: [CookieYes, DatoCMS, HSTS, Vercel]
 ```
 
 ## JSON format
-```yaml
+```bash
 cat urls.txt | techfinder -json
 {
   "host": "https://hackerone.com",
@@ -128,42 +169,10 @@ cat urls.txt | techfinder -json
     "YouTube"
   ]
 }
-{
-  "host": "https://www.intigriti.com",
-  "count": 4,
-  "tech": [
-    "CookieYes",
-    "DatoCMS",
-    "HSTS",
-    "Vercel"
-  ]
-}
-{
-  "host": "https://bugcrowd.com",
-  "count": 16,
-  "tech": [
-    "Bootstrap",
-    "Fastly",
-    "HSTS",
-    "MariaDB",
-    "Marketo Forms:2",
-    "MySQL",
-    "Nginx",
-    "OneTrust",
-    "PHP",
-    "Pantheon",
-    "Slick",
-    "Varnish",
-    "WordPress",
-    "Yoast SEO:22.8",
-    "jQuery",
-    "jQuery UI"
-  ]
-}
 ```
 
 ## CSV format
-```yaml
+```bash
 cat urls.txt | techfinder -csv
 host,count,tech
 https://bugcrowd.com,16,"Bootstrap, Fastly, HSTS, MariaDB, Marketo Forms:2, MySQL, Nginx, OneTrust, PHP, Pantheon, Slick, Varnish, WordPress, Yoast SEO:22.8, jQuery, jQuery UI"
@@ -193,16 +202,21 @@ https://hackerone.com,14,"Cloudflare, Drupal:10, Fastly, Google Tag Manager, HST
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-H, -user-agent` | Custom User-Agent string | Mozilla/5.0 (Windows NT 10.0...) |
-| `-timeout` | HTTP request timeout for fingerprinting and initial protocol probing (seconds) | 15 |
+| `-timeout` | HTTP request timeout in seconds | 15 |
 | `-i, -insecure` | Disable TLS verification | false |
-| `--no-resume` | Disable resume; start fresh and ignore any existing `resume.cfg` | false |
+| `--no-resume` | Disable resume; start fresh | false |
+
+### Detection Mode
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-mode` | `best` = headless browser (JS/DOM), `fast` = static HTTP only | `best` |
 
 ### Matchers & Notifications
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-mt, -match-tech` | Match specific technologies (file or comma-separated) | - |
 | `-discord` | Send results to Discord | false |
-| `-id` | Discord channel ID for notifications | general |
+| `-id` | Discord channel ID for notifications | alivesubdomain |
 | `-pc, -provider-config` | Notify provider config path | ~/.config/notify/provider-config.yaml |
 
 ### Debug & Info
@@ -215,43 +229,46 @@ https://hackerone.com,14,"Cloudflare, Drupal:10, Fastly, Google Tag Manager, HST
 ## 🔍 Advanced Usage
 
 ### Technology Matching
-```yaml
+```bash
 # Match specific technologies
-echo "https://example.com" | techfinder -mt "wordpress,php,nginx,iis,jenkins,java,grafana"
+echo "https://example.com" | techfinder -mt "wordpress,php,nginx,react,nextjs"
 
 # Use match file
 echo "https://example.com" | techfinder -mt technologies.txt
 ```
 
 ### Discord Integration
-```yaml
+```bash
 # Send results to Discord
 cat urls.txt | techfinder -discord -id "tech-scans"
 ```
 
 ### Save Results to File
-```yaml
+```bash
 # JSON output to file
 cat urls.txt | techfinder -json -o results.json
 
-# CSV output to file  
+# CSV output to file
 cat urls.txt | techfinder -csv -o results.csv
 ```
 
 ## 🛠️ Performance Tuning
 
-For large-scale scans:
-```yaml
-# Increase threads and adjust timeouts
-# Note: Probing now happens concurrently in workers for much faster performance
-cat large_targets.txt | techfinder -t 200 -timeout 10 -retries 2 -rate 500
+For large-scale scans where speed is critical, use `-mode fast` to skip headless Chrome:
+```bash
+# Fast static mode — no browser overhead
+cat large_targets.txt | techfinder -mode fast -t 200 -timeout 10 -retries 2 -rate 500
+```
 
-# Rate limiting example (100 requests per second max)
-cat targets.txt | techfinder -t 100 -rate 100
+For accuracy-focused scans on a smaller set of targets, use the default headless mode:
+```bash
+# Best accuracy — headless browser per URL
+cat targets.txt | techfinder -mode best -t 20 -timeout 20
+```
 
 ## ♻️ Resume & Interrupt Handling
 
-- Default-on resume saves progress to a `resume.cfg` in the current directory in the form:
+- Default-on resume saves progress to a `resume.cfg` in the current directory:
 
 ```
 scanned=300000
@@ -261,4 +278,3 @@ scanned=300000
 - Use `--no-resume` to start from scratch.
 - On successful completion, `resume.cfg` is deleted automatically.
 - On CTRL+C, pending tasks are cancelled gracefully and progress is saved before exiting with a helpful resume hint.
-```

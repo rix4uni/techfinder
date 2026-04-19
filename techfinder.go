@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chromedp/chromedp"
 	"gopkg.in/yaml.v2"
 
 	"github.com/projectdiscovery/goflags"
@@ -112,6 +113,7 @@ type Options struct {
 	Insecure       bool
 	RateLimit      int
 	NoResume       bool
+	Mode           string // "best" = headless (default), "fast" = static HTTP only
 }
 
 // Define the flags
@@ -166,6 +168,7 @@ func ParseOptions() *Options {
 		flagSet.BoolVarP(&options.Insecure, "insecure", "i", false, "Disable TLS verification"),
 		flagSet.DurationVar(&options.Delay, "delay", -1, "duration between each http request (eg: 200ms, 1s)"),
 		flagSet.IntVar(&options.RateLimit, "rate", 0, "Maximum requests per second (0 = unlimited)"),
+		flagSet.StringVar(&options.Mode, "mode", "best", "Detection mode: 'best' uses headless browser for JS/DOM fingerprinting (default), 'fast' uses static HTTP only"),
 	)
 
 	_ = flagSet.Parse()
@@ -660,8 +663,29 @@ func main() {
 			data, _ := io.ReadAll(resp.Body)
 			resp.Body.Close() // Close the body after reading
 
-			// Fingerprint the URL
-			fingerprints := wappalyzerClient.Fingerprint(resp.Header, data)
+			// Fingerprint the URL — mode determines static vs headless
+			var fingerprints map[string]struct{}
+			if options.Mode == "best" {
+				// Headless mode: launch a fresh chromedp context per URL
+				headlessCtx, headlessCancel := chromedp.NewContext(ctx)
+				headlessCtx, headlessTimeoutCancel := context.WithTimeout(headlessCtx, time.Duration(options.Timeout)*time.Second)
+				var headlessErr error
+				fingerprints, headlessErr = wappalyzerClient.FingerprintURL(headlessCtx, url)
+				headlessTimeoutCancel()
+				headlessCancel()
+				if headlessErr != nil {
+					if options.Verbose {
+						mu.Lock()
+						fmt.Printf("Headless failed for %s: %v (falling back to static)\n", url, headlessErr)
+						mu.Unlock()
+					}
+					// Graceful fallback to static results already in resp
+					fingerprints = wappalyzerClient.Fingerprint(resp.Header, data)
+				}
+			} else {
+				// Fast mode: use static HTTP response only
+				fingerprints = wappalyzerClient.Fingerprint(resp.Header, data)
+			}
 
 			// Matches
 			var matched []string
