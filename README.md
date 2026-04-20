@@ -21,9 +21,9 @@ go install github.com/rix4uni/techfinder@latest
 
 ### Download Prebuilt Binaries
 ```
-wget https://github.com/rix4uni/techfinder/releases/download/v0.0.7/techfinder-linux-amd64-0.0.7.tgz
-tar -xvzf techfinder-linux-amd64-0.0.7.tgz
-rm -rf techfinder-linux-amd64-0.0.7.tgz
+wget https://github.com/rix4uni/techfinder/releases/download/v0.0.8/techfinder-linux-amd64-0.0.8.tgz
+tar -xvzf techfinder-linux-amd64-0.0.8.tgz
+rm -rf techfinder-linux-amd64-0.0.8.tgz
 mv techfinder ~/go/bin/techfinder
 ```
 
@@ -69,6 +69,7 @@ DEBUG:
 OPTIMIZATIONS:
    -retries int            Number of retry attempts for failed HTTP requests (default 1)
    -timeout int            HTTP request timeout in seconds (default 15)
+   -headless-timeout int   Headless browser timeout in seconds (browser launch + navigation + JS execution) (default 30)
    -rd, -retriesDelay int  Delay in seconds between retry attempts
    -i, -insecure           Disable TLS verification
    -delay value            duration between each http request (eg: 200ms, 1s) (default -1ns)
@@ -111,7 +112,7 @@ Count: 4
 Technologies: [Amazon CloudFront, Amazon Web Services, HSTS, Netlify]
 ```
 
-> **Note:** In `best` mode, if headless Chrome fails for a URL (e.g. network timeout), techfinder automatically falls back to static detection for that target.
+> **Note:** In `best` mode, if headless Chrome fails for a URL (e.g. network timeout, browser not installed), techfinder reports the error and skips the URL. There is no fallback to static detection — fix the headless environment or use `-mode fast` for static-only detection.
 
 ## 📊 Output Examples
 
@@ -203,6 +204,7 @@ https://hackerone.com,14,"Cloudflare, Drupal:10, Fastly, Google Tag Manager, HST
 |------|-------------|---------|
 | `-H, -user-agent` | Custom User-Agent string | Mozilla/5.0 (Windows NT 10.0...) |
 | `-timeout` | HTTP request timeout in seconds | 15 |
+| `-headless-timeout` | Headless browser timeout (launch + navigation + JS) | 30 |
 | `-i, -insecure` | Disable TLS verification | false |
 | `--no-resume` | Disable resume; start fresh | false |
 
@@ -210,6 +212,7 @@ https://hackerone.com,14,"Cloudflare, Drupal:10, Fastly, Google Tag Manager, HST
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-mode` | `best` = headless browser (JS/DOM), `fast` = static HTTP only | `best` |
+| `-headless-timeout` | Timeout for headless browser operations (seconds) | 30 |
 
 ### Matchers & Notifications
 | Flag | Description | Default |
@@ -263,7 +266,7 @@ cat large_targets.txt | techfinder -mode fast -t 200 -timeout 10 -retries 2 -rat
 For accuracy-focused scans on a smaller set of targets, use the default headless mode:
 ```bash
 # Best accuracy — headless browser per URL
-cat targets.txt | techfinder -mode best -t 20 -timeout 20
+cat targets.txt | techfinder -mode best -t 20 -timeout 15 -headless-timeout 45
 ```
 
 ## ♻️ Resume & Interrupt Handling

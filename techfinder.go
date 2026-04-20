@@ -14,13 +14,12 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/chromedp/chromedp"
 	"gopkg.in/yaml.v2"
 
 	"github.com/projectdiscovery/goflags"
@@ -94,26 +93,27 @@ func isReachable(url string, timeout int, userAgent string, client *http.Client)
 
 // Options holds all configuration flags
 type Options struct {
-	Output         string
-	JSONOutput     bool
-	CSVOutput      bool
-	Threads        int
-	UserAgent      string
-	SendToDiscord  bool
-	DiscordId      string
-	ProviderConfig string
-	MatchTech      string
-	Verbose        bool
-	Version        bool
-	Silent         bool
-	Delay          time.Duration
-	Retries        int
-	Timeout        int
-	RetriesDelay   int
-	Insecure       bool
-	RateLimit      int
-	NoResume       bool
-	Mode           string // "best" = headless (default), "fast" = static HTTP only
+	Output          string
+	JSONOutput      bool
+	CSVOutput       bool
+	Threads         int
+	UserAgent       string
+	SendToDiscord   bool
+	DiscordId       string
+	ProviderConfig  string
+	MatchTech       string
+	Verbose         bool
+	Version         bool
+	Silent          bool
+	Delay           time.Duration
+	Retries         int
+	Timeout         int
+	HeadlessTimeout int
+	RetriesDelay    int
+	Insecure        bool
+	RateLimit       int
+	NoResume        bool
+	Mode            string // "best" = headless (default), "fast" = static HTTP only
 }
 
 // Define the flags
@@ -164,6 +164,7 @@ func ParseOptions() *Options {
 	createGroup(flagSet, "optimizations", "OPTIMIZATIONS",
 		flagSet.IntVar(&options.Retries, "retries", 1, "Number of retry attempts for failed HTTP requests"),
 		flagSet.IntVar(&options.Timeout, "timeout", 15, "HTTP request timeout in seconds for fingerprinting and initial protocol probing"),
+		flagSet.IntVar(&options.HeadlessTimeout, "headless-timeout", 30, "Headless browser timeout in seconds (browser launch + navigation + JS execution)"),
 		flagSet.IntVarP(&options.RetriesDelay, "retriesDelay", "rd", 0, "Delay in seconds between retry attempts"),
 		flagSet.BoolVarP(&options.Insecure, "insecure", "i", false, "Disable TLS verification"),
 		flagSet.DurationVar(&options.Delay, "delay", -1, "duration between each http request (eg: 200ms, 1s)"),
@@ -666,21 +667,21 @@ func main() {
 			// Fingerprint the URL — mode determines static vs headless
 			var fingerprints map[string]struct{}
 			if options.Mode == "best" {
-				// Headless mode: launch a fresh chromedp context per URL
-				headlessCtx, headlessCancel := chromedp.NewContext(ctx)
-				headlessCtx, headlessTimeoutCancel := context.WithTimeout(headlessCtx, time.Duration(options.Timeout)*time.Second)
+				// Headless mode: FingerprintURL creates its own chromedp context internally
+				headlessCtx, headlessCancel := context.WithTimeout(ctx, time.Duration(options.HeadlessTimeout)*time.Second)
 				var headlessErr error
 				fingerprints, headlessErr = wappalyzerClient.FingerprintURL(headlessCtx, url)
-				headlessTimeoutCancel()
 				headlessCancel()
 				if headlessErr != nil {
-					if options.Verbose {
-						mu.Lock()
-						fmt.Printf("Headless failed for %s: %v (falling back to static)\n", url, headlessErr)
-						mu.Unlock()
+					mu.Lock()
+					fmt.Printf("Headless failed for %s: %v\n", url, headlessErr)
+					mu.Unlock()
+					<-sem
+					select {
+					case doneCh <- wi.index:
+					case <-ctx.Done():
 					}
-					// Graceful fallback to static results already in resp
-					fingerprints = wappalyzerClient.Fingerprint(resp.Header, data)
+					continue
 				}
 			} else {
 				// Fast mode: use static HTTP response only
