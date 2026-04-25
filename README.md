@@ -37,7 +37,7 @@ cd techfinder; go install
 ```
 
 ## 🔧 Usage
-```
+```console
 A high-performance technology detection tool built with Go, leveraging the rix4uni wappalyzergo library to identify web technologies and frameworks.
 
 Usage:
@@ -97,10 +97,9 @@ This catches technologies invisible to static HTTP requests.
 - Pre-initialized browsers eliminate per-URL launch overhead (~3s → ~0.5s)
 - Configurable pool size: `-browser-pool-size 10`
 
-```bash
+```console
 echo "https://www.cetus.zone" | techfinder -mode best -silent
-```
-```
+
 URL: https://www.cetus.zone
 Count: 17
 Technologies: [Amazon CloudFront, Amazon Web Services, Framer Motion, HSTS, LottieFiles, Netlify, Next.js App Router, Next.js:14.2.16, Node.js, Open Graph, Priority Hints, React, Svelte, SvelteKit, Swiper, Vite, Webpack]
@@ -110,10 +109,9 @@ Technologies: [Amazon CloudFront, Amazon Web Services, Framer Motion, HSTS, Lott
 
 Uses plain HTTP GET requests only — no browser, no JS execution. Best for large-scale scanning where speed matters more than completeness.
 
-```bash
+```console
 echo "https://www.cetus.zone" | techfinder -mode fast -silent
-```
-```
+
 URL: https://www.cetus.zone
 Count: 4
 Technologies: [Amazon CloudFront, Amazon Web Services, HSTS, Netlify]
@@ -124,22 +122,22 @@ Technologies: [Amazon CloudFront, Amazon Web Services, HSTS, Netlify]
 ## 📊 Output Examples
 
 Single URL:
-```bash
+```console
 echo "https://hackerone.com" | techfinder
 ```
 
 Multiple URLs:
-```bash
+```console
 cat urls.txt | techfinder
 ```
 
 Start fresh without resuming:
-```bash
+```console
 cat urls.txt | techfinder --no-resume
 ```
 
 ## Plain text
-```bash
+```console
 cat urls.txt | techfinder -mode fast
 URL: https://hackerone.com
 Count: 14
@@ -155,7 +153,7 @@ Technologies: [CookieYes, DatoCMS, HSTS, Vercel]
 ```
 
 ## JSON format
-```bash
+```console
 cat urls.txt | techfinder -json
 {
   "host": "https://hackerone.com",
@@ -180,7 +178,7 @@ cat urls.txt | techfinder -json
 ```
 
 ## CSV format
-```bash
+```console
 cat urls.txt | techfinder -csv
 host,count,tech
 https://bugcrowd.com,16,"Bootstrap, Fastly, HSTS, MariaDB, Marketo Forms:2, MySQL, Nginx, OneTrust, PHP, Pantheon, Slick, Varnish, WordPress, Yoast SEO:22.8, jQuery, jQuery UI"
@@ -240,7 +238,7 @@ https://hackerone.com,14,"Cloudflare, Drupal:10, Fastly, Google Tag Manager, HST
 ## 🔍 Advanced Usage
 
 ### Technology Matching
-```bash
+```console
 # Match specific technologies
 echo "https://example.com" | techfinder -mt "wordpress,php,nginx,react,nextjs"
 
@@ -249,13 +247,13 @@ echo "https://example.com" | techfinder -mt technologies.txt
 ```
 
 ### Discord Integration
-```bash
+```console
 # Send results to Discord
 cat urls.txt | techfinder -discord -id "tech-scans"
 ```
 
 ### Save Results to File
-```bash
+```console
 # JSON output to file
 cat urls.txt | techfinder -json -o results.json
 
@@ -266,13 +264,13 @@ cat urls.txt | techfinder -csv -o results.csv
 ## 🛠️ Performance Tuning
 
 For large-scale scans where speed is critical, use `-mode fast` to skip headless Chrome:
-```bash
+```console
 # Fast static mode — no browser overhead
 cat large_targets.txt | techfinder -mode fast -t 200 -timeout 10 -retries 2 -rate 500
 ```
 
 For accuracy-focused scans on a smaller set of targets, use the default headless mode with browser pool:
-```bash
+```console
 # Best accuracy with browser pool (default 5 browsers)
 cat targets.txt | techfinder -mode best -t 20 -timeout 15 -headless-timeout 45
 
@@ -284,7 +282,7 @@ cat targets.txt | techfinder -mode best -browser-pool-size 10 -t 50
 
 - Default-on resume saves progress to a `resume.cfg` in the current directory:
 
-```
+```console
 scanned=300000
 ```
 
@@ -302,7 +300,7 @@ techfinder automatically downloads required fingerprint data files on first run:
 Files are stored in `~/.config/techfinder/` and auto-downloaded from GitHub if missing.
 
 **Manual Setup (optional):**
-```bash
+```console
 mkdir -p ~/.config/techfinder
 cd ~/.config/techfinder
 wget https://raw.githubusercontent.com/projectdiscovery/wappalyzergo/refs/heads/main/fingerprints_data.json
