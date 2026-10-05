@@ -2294,6 +2294,7 @@ func main() {
 				req, err := http.NewRequestWithContext(reqCtx, "GET", url, nil)
 				if err != nil {
 					reqCancel()
+					fetchErr = err
 					if options.Verbose && ctx.Err() == nil {
 						mu.Lock()
 						fmt.Printf("Failed to create request for %s: %v\n", url, err)
@@ -2337,10 +2338,14 @@ func main() {
 				return
 			}
 
-			if fetchErr != nil {
+			if fetchErr != nil || resp == nil || resp.Body == nil {
 				if options.Verbose && ctx.Err() == nil {
 					mu.Lock()
-					fmt.Printf("Failed to fetch %s after %d retries: %v\n", url, options.Retries, fetchErr)
+					if fetchErr != nil {
+						fmt.Printf("Failed to fetch %s after %d retries: %v\n", url, options.Retries, fetchErr)
+					} else {
+						fmt.Printf("Failed to fetch %s: response is nil\n", url)
+					}
 					mu.Unlock()
 				}
 				// Do not mark completion if cancelled
@@ -2379,7 +2384,7 @@ func main() {
 					allocCancel()
 				}
 				if headlessErr != nil {
-					if options.Verbose && ctx.Err() == nil {
+					if (!options.Silent || options.Verbose) && ctx.Err() == nil {
 						mu.Lock()
 						fmt.Fprintf(os.Stderr, "Headless failed for %s (%v), falling back to static detection\n", url, headlessErr)
 						mu.Unlock()
@@ -2515,9 +2520,10 @@ func main() {
 		if ctx.Err() != nil {
 			break
 		}
-		line := scanner.Text()
+		line := strings.ReplaceAll(scanner.Text(), "\x00", "")
+		line = strings.TrimSpace(line)
 		// We count non-empty lines as items
-		if strings.TrimSpace(line) == "" {
+		if line == "" {
 			continue
 		}
 		if total >= start {
